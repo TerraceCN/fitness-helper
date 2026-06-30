@@ -11,6 +11,14 @@ import {
   TRAINING_TIME_LABELS,
 } from '@/utils/mealComposition'
 import type { TrainingTime, DietComposition } from '@/utils/mealComposition'
+import {
+  CARB_FOODS,
+  PROTEIN_FOODS,
+  formatCarbOption,
+  formatProteinOption,
+  emptyFoodSelections,
+} from '@/utils/optionalFoods'
+import type { FoodSelections, MealFoodSelection } from '@/utils/optionalFoods'
 
 // ---- localStorage 持久化 ----
 const STORAGE_KEY = 'fitness-helper:diet-calculator-form'
@@ -75,6 +83,71 @@ watch(
 
 // ---- 计算结果 ----
 const result = computed<DietResult>(() => calculateDiet(form))
+
+// ---- 可选食物选择状态 ----
+const FOOD_STORAGE_KEY = 'fitness-helper:food-selections'
+
+function loadFoodSelections(): FoodSelections {
+  try {
+    const raw = localStorage.getItem(FOOD_STORAGE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      return {
+        trainingDay: parsed.trainingDay ?? {},
+        restDay: parsed.restDay ?? {},
+      }
+    }
+  } catch {
+    // 数据损坏，使用空选择
+  }
+  return emptyFoodSelections()
+}
+
+const savedFoods = loadFoodSelections()
+const foodSelections = reactive<FoodSelections>({ ...savedFoods })
+
+// 食物选择变化时自动保存
+watch(
+  () => JSON.parse(JSON.stringify(foodSelections)),
+  (val) => {
+    localStorage.setItem(FOOD_STORAGE_KEY, JSON.stringify(val))
+  },
+)
+
+/** 更新单餐食物选择 */
+function updateFoodSelection(
+  day: 'trainingDay' | 'restDay',
+  mealIndex: number,
+  patch: Partial<MealFoodSelection>,
+) {
+  if (!foodSelections[day][mealIndex]) {
+    foodSelections[day][mealIndex] = {}
+  }
+  Object.assign(foodSelections[day][mealIndex], patch)
+}
+
+/** 获取单餐食物选择 */
+function getFoodSelection(day: 'trainingDay' | 'restDay', mealIndex: number): MealFoodSelection {
+  return foodSelections[day][mealIndex] ?? {}
+}
+
+/** 根据餐食克数生成碳水食物选项 */
+function getCarbOptions(carbGrams: number): { value: string; label: string }[] {
+  if (carbGrams <= 0) return []
+  return CARB_FOODS.map((f) => ({
+    value: f.id,
+    label: formatCarbOption(f, carbGrams),
+  }))
+}
+
+/** 根据餐食克数生成蛋白质食物选项 */
+function getProteinOptions(proteinGrams: number): { value: string; label: string }[] {
+  if (proteinGrams <= 0) return []
+  return PROTEIN_FOODS.map((f) => ({
+    value: f.id,
+    label: formatProteinOption(f, proteinGrams),
+  }))
+}
 
 // ---- BMI 分类样式 ----
 const bmiCategoryClass = computed(() => {
@@ -429,11 +502,50 @@ const trainingTimeOptions = (
                 <div
                   v-for="(meal, idx) in dietComposition.trainingDay"
                   :key="idx"
-                  class="meal-table__row"
                 >
-                  <span class="meal-table__col meal-table__col--name">{{ meal.label }}</span>
-                  <span class="meal-table__col meal-table__col--num">{{ meal.carbs }}</span>
-                  <span class="meal-table__col meal-table__col--num">{{ meal.protein }}</span>
+                  <div class="meal-table__row">
+                    <span class="meal-table__col meal-table__col--name">{{ meal.label }}</span>
+                    <span class="meal-table__col meal-table__col--num">{{ meal.carbs }}</span>
+                    <span class="meal-table__col meal-table__col--num">{{ meal.protein }}</span>
+                  </div>
+                  <div
+                    v-if="!meal.label.includes('零食/夜宵')"
+                    class="meal-table__food-row"
+                  >
+                    <span class="meal-table__col meal-table__col--name">
+                      <select
+                        class="food-select"
+                        :value="getFoodSelection('trainingDay', idx).carb ?? ''"
+                        @change="updateFoodSelection('trainingDay', idx, { carb: ($event.target as HTMLSelectElement).value || undefined })"
+                      >
+                        <option value="">—</option>
+                        <option
+                          v-for="opt in getCarbOptions(meal.carbs)"
+                          :key="opt.value"
+                          :value="opt.value"
+                        >
+                          {{ opt.label }}
+                        </option>
+                      </select>
+                    </span>
+                    <span class="meal-table__col meal-table__col--num">
+                      <select
+                        v-if="meal.protein > 0"
+                        class="food-select"
+                        :value="getFoodSelection('trainingDay', idx).protein ?? ''"
+                        @change="updateFoodSelection('trainingDay', idx, { protein: ($event.target as HTMLSelectElement).value || undefined })"
+                      >
+                        <option value="">—</option>
+                        <option
+                          v-for="opt in getProteinOptions(meal.protein)"
+                          :key="opt.value"
+                          :value="opt.value"
+                        >
+                          {{ opt.label }}
+                        </option>
+                      </select>
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -449,11 +561,50 @@ const trainingTimeOptions = (
                 <div
                   v-for="(meal, idx) in dietComposition.restDay"
                   :key="idx"
-                  class="meal-table__row"
                 >
-                  <span class="meal-table__col meal-table__col--name">{{ meal.label }}</span>
-                  <span class="meal-table__col meal-table__col--num">{{ meal.carbs }}</span>
-                  <span class="meal-table__col meal-table__col--num">{{ meal.protein }}</span>
+                  <div class="meal-table__row">
+                    <span class="meal-table__col meal-table__col--name">{{ meal.label }}</span>
+                    <span class="meal-table__col meal-table__col--num">{{ meal.carbs }}</span>
+                    <span class="meal-table__col meal-table__col--num">{{ meal.protein }}</span>
+                  </div>
+                  <div
+                    v-if="!meal.label.includes('零食/夜宵')"
+                    class="meal-table__food-row"
+                  >
+                    <span class="meal-table__col meal-table__col--name">
+                      <select
+                        class="food-select"
+                        :value="getFoodSelection('restDay', idx).carb ?? ''"
+                        @change="updateFoodSelection('restDay', idx, { carb: ($event.target as HTMLSelectElement).value || undefined })"
+                      >
+                        <option value="">—</option>
+                        <option
+                          v-for="opt in getCarbOptions(meal.carbs)"
+                          :key="opt.value"
+                          :value="opt.value"
+                        >
+                          {{ opt.label }}
+                        </option>
+                      </select>
+                    </span>
+                    <span class="meal-table__col meal-table__col--num">
+                      <select
+                        v-if="meal.protein > 0"
+                        class="food-select"
+                        :value="getFoodSelection('restDay', idx).protein ?? ''"
+                        @change="updateFoodSelection('restDay', idx, { protein: ($event.target as HTMLSelectElement).value || undefined })"
+                      >
+                        <option value="">—</option>
+                        <option
+                          v-for="opt in getProteinOptions(meal.protein)"
+                          :key="opt.value"
+                          :value="opt.value"
+                        >
+                          {{ opt.label }}
+                        </option>
+                      </select>
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -965,5 +1116,55 @@ const trainingTimeOptions = (
   font-size: 12px;
   color: var(--color-text-muted);
   text-align: center;
+}
+
+/* ===== 可选食物下拉行 ===== */
+.meal-table__food-row {
+  display: flex;
+  padding: 4px 8px 8px;
+  border-top: 1px solid rgba(55, 65, 81, 0.2);
+  gap: 8px;
+}
+
+.meal-table__food-row .meal-table__col {
+  flex: 1;
+  min-width: 0;
+}
+
+.meal-table__food-row .meal-table__col--num {
+  justify-content: flex-start;
+  width: auto;
+}
+
+.food-select {
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  background: #111827;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%236b7280' d='M5 6.5L1.5 3h7z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  padding-right: 22px;
+  transition: border-color 0.2s;
+}
+
+.food-select:hover {
+  border-color: var(--color-primary);
+}
+
+.food-select:focus {
+  border-color: var(--color-primary);
+}
+
+.food-select option {
+  color: var(--color-text);
+  background: #1f2937;
 }
 </style>
