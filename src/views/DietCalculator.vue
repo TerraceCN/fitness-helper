@@ -6,6 +6,11 @@ import {
   PLAN_TYPE_LABELS,
 } from '@/utils/dietCalculator'
 import type { Gender, TrainingLevel, PlanType, DietResult } from '@/utils/dietCalculator'
+import {
+  calculateDietComposition,
+  TRAINING_TIME_LABELS,
+} from '@/utils/mealComposition'
+import type { TrainingTime, DietComposition } from '@/utils/mealComposition'
 
 // ---- localStorage 持久化 ----
 const STORAGE_KEY = 'fitness-helper:diet-calculator-form'
@@ -18,6 +23,7 @@ interface StoredForm {
   trainingLevel: TrainingLevel
   cardioCalories: number
   planType: PlanType
+  trainingTime: TrainingTime
 }
 
 const DEFAULT_FORM: StoredForm = {
@@ -28,6 +34,7 @@ const DEFAULT_FORM: StoredForm = {
   trainingLevel: 'intermediate',
   cardioCalories: 0,
   planType: 'cut',
+  trainingTime: 'morning_early',
 }
 
 function loadForm(): StoredForm {
@@ -45,6 +52,7 @@ function loadForm(): StoredForm {
         cardioCalories:
           typeof parsed.cardioCalories === 'number' ? parsed.cardioCalories : DEFAULT_FORM.cardioCalories,
         planType: parsed.planType ?? DEFAULT_FORM.planType,
+        trainingTime: parsed.trainingTime ?? DEFAULT_FORM.trainingTime,
       }
     }
   } catch {
@@ -79,6 +87,11 @@ const bmiCategoryClass = computed(() => {
   return map[result.value.bodyMetrics.bmiCategory] || ''
 })
 
+// ---- 饮食组成 ----
+const dietComposition = computed<DietComposition>(() =>
+  calculateDietComposition(form.trainingTime, result.value.macroPlan),
+)
+
 // ---- 帮组方法 ----
 const genderOptions: { value: Gender; label: string }[] = [
   { value: 'male', label: '男' },
@@ -91,6 +104,10 @@ const trainingLevelOptions = (
 
 const planTypeOptions = (
   Object.entries(PLAN_TYPE_LABELS) as [PlanType, string][]
+).map(([value, label]) => ({ value, label }))
+
+const trainingTimeOptions = (
+  Object.entries(TRAINING_TIME_LABELS) as [TrainingTime, string][]
 ).map(([value, label]) => ({ value, label }))
 </script>
 
@@ -167,27 +184,6 @@ const planTypeOptions = (
           />
         </div>
 
-        <!-- 力训熟练度 -->
-        <div class="field">
-          <label class="field__label">力训熟练度</label>
-          <div class="radio-group">
-            <label
-              v-for="opt in trainingLevelOptions"
-              :key="opt.value"
-              class="radio-btn"
-              :class="{ 'radio-btn--active': form.trainingLevel === opt.value }"
-            >
-              <input
-                v-model="form.trainingLevel"
-                type="radio"
-                :value="opt.value"
-                class="radio-btn__input"
-              />
-              <span class="radio-btn__label">{{ opt.label }}</span>
-            </label>
-          </div>
-        </div>
-
         <!-- 训练方案 -->
         <div class="field">
           <label class="field__label">训练方案</label>
@@ -200,6 +196,45 @@ const planTypeOptions = (
             >
               <input
                 v-model="form.planType"
+                type="radio"
+                :value="opt.value"
+                class="radio-btn__input"
+              />
+              <span class="radio-btn__label">{{ opt.label }}</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- 训练时间 -->
+        <div class="field">
+          <label class="field__label" for="trainingTime">训练时间</label>
+          <select
+            id="trainingTime"
+            v-model="form.trainingTime"
+            class="field__input field__select"
+          >
+            <option
+              v-for="opt in trainingTimeOptions"
+              :key="opt.value"
+              :value="opt.value"
+            >
+              {{ opt.label }}
+            </option>
+          </select>
+        </div>
+
+        <!-- 力训熟练度 -->
+        <div class="field">
+          <label class="field__label">力训熟练度</label>
+          <div class="radio-group">
+            <label
+              v-for="opt in trainingLevelOptions"
+              :key="opt.value"
+              class="radio-btn"
+              :class="{ 'radio-btn--active': form.trainingLevel === opt.value }"
+            >
+              <input
+                v-model="form.trainingLevel"
                 type="radio"
                 :value="opt.value"
                 class="radio-btn__input"
@@ -374,6 +409,58 @@ const planTypeOptions = (
               </dl>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- 饮食组成 -->
+      <div class="card result-card result-card--full">
+        <h2 class="card__title">饮食组成</h2>
+        <div class="result-card__body">
+          <div class="macro-columns">
+            <!-- 力训日饮食 -->
+            <div class="macro-column">
+              <h3 class="macro-column__title">力训日饮食</h3>
+              <div class="meal-table">
+                <div class="meal-table__header">
+                  <span class="meal-table__col meal-table__col--name">餐食</span>
+                  <span class="meal-table__col meal-table__col--num">碳水(g)</span>
+                  <span class="meal-table__col meal-table__col--num">蛋白质(g)</span>
+                </div>
+                <div
+                  v-for="(meal, idx) in dietComposition.trainingDay"
+                  :key="idx"
+                  class="meal-table__row"
+                >
+                  <span class="meal-table__col meal-table__col--name">{{ meal.label }}</span>
+                  <span class="meal-table__col meal-table__col--num">{{ meal.carbs }}</span>
+                  <span class="meal-table__col meal-table__col--num">{{ meal.protein }}</span>
+                </div>
+              </div>
+            </div>
+            <!-- 休息日饮食 -->
+            <div class="macro-column">
+              <h3 class="macro-column__title">休息日饮食</h3>
+              <div class="meal-table">
+                <div class="meal-table__header">
+                  <span class="meal-table__col meal-table__col--name">餐食</span>
+                  <span class="meal-table__col meal-table__col--num">碳水(g)</span>
+                  <span class="meal-table__col meal-table__col--num">蛋白质(g)</span>
+                </div>
+                <div
+                  v-for="(meal, idx) in dietComposition.restDay"
+                  :key="idx"
+                  class="meal-table__row"
+                >
+                  <span class="meal-table__col meal-table__col--name">{{ meal.label }}</span>
+                  <span class="meal-table__col meal-table__col--num">{{ meal.carbs }}</span>
+                  <span class="meal-table__col meal-table__col--num">{{ meal.protein }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="meal-table__note">
+            脂肪为全天固定值：力训日 {{ result.macroPlan.trainingDay.fat }}g，休息日 {{ result.macroPlan.restDay.fat }}g，不按餐分配。
+          </p>
         </div>
       </div>
     </section>
@@ -808,5 +895,75 @@ const planTypeOptions = (
 
 .attribution a:hover {
   text-decoration: underline;
+}
+
+/* ===== Select 下拉框 ===== */
+.field__select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239ca3af' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+
+/* ===== 饮食组成餐食表格 ===== */
+.meal-table {
+  display: flex;
+  flex-direction: column;
+}
+
+.meal-table__header {
+  display: flex;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.meal-table__header .meal-table__col {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.meal-table__row {
+  display: flex;
+  padding: 7px 8px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.meal-table__row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.meal-table__row + .meal-table__row {
+  border-top: 1px solid rgba(55, 65, 81, 0.4);
+}
+
+.meal-table__col {
+  display: flex;
+  align-items: center;
+}
+
+.meal-table__col--name {
+  flex: 1;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.meal-table__col--num {
+  width: 72px;
+  justify-content: flex-end;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.meal-table__note {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  text-align: center;
 }
 </style>
