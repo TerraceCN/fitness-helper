@@ -96,7 +96,7 @@ const planTypeOptions = (
 
 <template>
   <div class="calculator">
-    <h1 class="calculator__title">生活化减脂计算器</h1>
+    <h1 class="calculator__title">生活化健身计算器</h1>
 
     <!-- 表单区域 -->
     <section class="card form-card">
