@@ -160,6 +160,16 @@ const bmiCategoryClass = computed(() => {
   return map[result.value.bodyMetrics.bmiCategory] || ''
 })
 
+/** BMI 建议方向 */
+const bmiRecommendation = computed(() => {
+  const threshold = form.gender === 'male' ? 23 : 21
+  const bmi = result.value.bodyMetrics.bmi
+  if (bmi > threshold) {
+    return { action: '减脂', className: 'bmi-tip--cut' }
+  }
+  return { action: '增肌', className: 'bmi-tip--bulk' }
+})
+
 // ---- 饮食组成 ----
 const dietComposition = computed<DietComposition>(() =>
   calculateDietComposition(form.trainingTime, result.value.macroPlan),
@@ -345,9 +355,14 @@ const trainingTimeOptions = (
             <span class="bmi-display__value" :class="bmiCategoryClass">
               {{ result.bodyMetrics.bmi }}
             </span>
-            <span class="bmi-display__tag" :class="bmiCategoryClass">
-              {{ result.bodyMetrics.bmiLabel }}
-            </span>
+            <div class="bmi-display__tags">
+              <span class="bmi-display__tag" :class="bmiCategoryClass">
+                {{ result.bodyMetrics.bmiLabel }}
+              </span>
+              <span class="bmi-display__tip" :class="bmiRecommendation.className">
+                建议{{ bmiRecommendation.action }}
+              </span>
+            </div>
           </div>
           <div class="bmi-legend">
             <div class="bmi-legend__item">
@@ -641,7 +656,7 @@ const trainingTimeOptions = (
 
 /* ===== 页面容器 ===== */
 .calculator {
-  max-width: 960px;
+  max-width: 85vw;
   margin: 0 auto;
   padding: 24px 16px 48px;
 }
@@ -886,6 +901,29 @@ const trainingTimeOptions = (
   color: #f87171;
 }
 
+.bmi-display__tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bmi-display__tip {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 16px;
+  border-radius: 20px;
+}
+
+.bmi-display__tip.bmi-tip--cut {
+  background: rgba(248, 113, 113, 0.12);
+  color: #fca5a5;
+}
+
+.bmi-display__tip.bmi-tip--bulk {
+  background: rgba(96, 165, 250, 0.12);
+  color: #93c5fd;
+}
+
 /* BMI 图例 */
 .bmi-legend {
   display: grid;
@@ -1121,6 +1159,7 @@ const trainingTimeOptions = (
 /* ===== 可选食物下拉行 ===== */
 .meal-table__food-row {
   display: flex;
+  flex-wrap: wrap;
   padding: 4px 8px 8px;
   border-top: 1px solid rgba(55, 65, 81, 0.2);
   gap: 8px;
@@ -1134,6 +1173,12 @@ const trainingTimeOptions = (
 .meal-table__food-row .meal-table__col--num {
   justify-content: flex-start;
   width: auto;
+}
+
+@media (max-width: 639px) {
+  .meal-table__food-row .meal-table__col {
+    flex: 1 1 100%;
+  }
 }
 
 .food-select {
