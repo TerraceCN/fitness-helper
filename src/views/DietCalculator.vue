@@ -661,6 +661,12 @@ const trainingTimeOptions = (
   padding: 24px 16px 48px;
 }
 
+@media (max-width: 639px) {
+  .calculator {
+    max-width: 95vw;
+  }
+}
+
 .calculator__title {
   font-size: 24px;
   font-weight: 700;
